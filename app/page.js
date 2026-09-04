@@ -75,7 +75,7 @@ const RESPONSE_STYLES = {
   "Minor Upgrade": "bg-emerald-950/80 text-emerald-300 border border-emerald-700/60",
   "Off Spec": "bg-amber-950/80 text-amber-300 border border-amber-700/60",
   "Tmog": "bg-pink-950/80 text-pink-300 border border-pink-700/60",
-  "Bonus Loot": "bg-indigo-950/80 text-indigo-300 border border-indigo-700/60"
+  "Pass": "bg-gray-800 text-gray-400 border border-gray-700"
 };
 
 const PLURAL_MAP = {
@@ -93,7 +93,6 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
   const el = equipLoc.toLowerCase();
   const st = subType.toLowerCase();
 
-  // Tier tokens, curios, icons, remnants, relics, idols, effigies
   if (
     st.includes("token") ||
     t.includes("icon") ||
@@ -107,15 +106,12 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
     return "Token";
   }
 
-  // Trinkets
   if (el.includes("trinket") || st.includes("trinket")) return "Trinket";
 
-  // Jewelry
   if (el.includes("finger") || el.includes("neck") || st.includes("finger") || st.includes("neck")) {
     return "Jewelry";
   }
 
-  // Weapons, shields, and off-hands
   if (
     el.includes("one-hand") ||
     el.includes("two-hand") ||
@@ -140,7 +136,6 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
     return "Weapon/Shield";
   }
 
-  // Armor
   if (
     st.includes("cloth") ||
     st.includes("leather") ||
@@ -384,6 +379,7 @@ function ItemTypeDropdown({ selected, onChange }) {
 
 export default function LootDashboard() {
   const [data, setData] = useState([]);
+  const [bonusRollsData, setBonusRollsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("table");
   const [raiderDisplayMode, setRaiderDisplayMode] = useState("bars");
@@ -436,7 +432,8 @@ export default function LootDashboard() {
           const idxEquipLoc = headers.indexOf("equiploc");
           const idxRollType = headers.indexOf("rolltype");
 
-          const parsedItems = [];
+          const parsedCouncilItems = [];
+          const parsedBonusItems = [];
 
           for (let i = headerIdx + 1; i < rows.length; i++) {
             const r = rows[i];
@@ -445,7 +442,7 @@ export default function LootDashboard() {
             const respRaw = idxResponse !== -1 ? (r[idxResponse] || "Awarded").trim() : "Awarded";
             const rollTypeRaw = idxRollType !== -1 ? (r[idxRollType] || "").trim() : "";
 
-            // Omit Personal Loot entirely
+            // Omit Personal Loot entirely from everything
             if (
               respRaw.toLowerCase().includes("personal loot") ||
               respRaw.toLowerCase().includes("non tradeable") ||
@@ -489,33 +486,39 @@ export default function LootDashboard() {
               else if (st.includes("plate")) armorSubCategory = "Plate";
             }
 
-            const isBonusRoll = 
+            const isBonus = 
               respRaw.toLowerCase().includes("bonus") || 
               rollTypeRaw.toLowerCase().includes("bonus");
 
-            if (name || item) {
-              parsedItems.push({
-                name: (name || "").trim(),
-                item: (item || "").trim(),
-                itemID: (itemID || "").toString().trim(),
-                date: (idxDate !== -1 ? r[idxDate] : "").trim(),
-                time: (idxTime !== -1 ? r[idxTime] : "").trim(),
-                class: idxClass !== -1 ? (r[idxClass] || "").toUpperCase().trim() : "",
-                response: respRaw,
-                boss: (idxBoss !== -1 ? r[idxBoss] : "").trim(),
-                instance: instanceName,
-                difficulty,
-                gear1: (idxGear1 !== -1 ? r[idxGear1] : "").trim(),
-                subType,
-                equipLoc,
-                itemType,
-                armorSubCategory,
-                isBonusRoll
-              });
+            const record = {
+              name: (name || "").trim(),
+              item: (item || "").trim(),
+              itemID: (itemID || "").toString().trim(),
+              date: (idxDate !== -1 ? r[idxDate] : "").trim(),
+              time: (idxTime !== -1 ? r[idxTime] : "").trim(),
+              class: idxClass !== -1 ? (r[idxClass] || "").toUpperCase().trim() : "",
+              response: respRaw,
+              boss: (idxBoss !== -1 ? r[idxBoss] : "").trim(),
+              instance: instanceName,
+              difficulty,
+              gear1: (idxGear1 !== -1 ? r[idxGear1] : "").trim(),
+              subType,
+              equipLoc,
+              itemType,
+              armorSubCategory
+            };
+
+            if (isBonus) {
+              // Store separately for the Analytics Tab
+              parsedBonusItems.push(record);
+            } else if (name || item) {
+              // Main Loot Council data pool
+              parsedCouncilItems.push(record);
             }
           }
 
-          setData(parsedItems);
+          setData(parsedCouncilItems);
+          setBonusRollsData(parsedBonusItems);
           setLoading(false);
           setLastRefreshed(new Date().toLocaleTimeString());
 
@@ -573,7 +576,6 @@ export default function LootDashboard() {
     const total = filteredData.length;
     const bisCount = filteredData.filter((d) => d.response === "BiS/Tier").length;
     const tokens = filteredData.filter((d) => d.itemType === "Token").length;
-    const bonusRolls = filteredData.filter((d) => d.isBonusRoll).length;
 
     const playerCounts = {};
     const playerClassMap = {};
@@ -588,7 +590,7 @@ export default function LootDashboard() {
     const sortedByCount = Object.entries(playerCounts).sort((a, b) => b[1] - a[1]);
     const maxCount = sortedByCount[0]?.[1] || 1;
 
-    return { total, bisCount, tokens, bonusRolls, alphaPlayers, sortedByCount, maxCount, playerClassMap };
+    return { total, bisCount, tokens, alphaPlayers, sortedByCount, maxCount, playerClassMap };
   }, [filteredData]);
 
   const analytics = useMemo(() => {
@@ -608,8 +610,11 @@ export default function LootDashboard() {
 
       if (d.class) classCounts[d.class] = (classCounts[d.class] || 0) + 1;
       if (d.boss) bossCounts[d.boss] = (bossCounts[d.boss] || 0) + 1;
+    });
 
-      if (d.isBonusRoll && d.boss) {
+    // Compute Bonus Rolls used per boss from the segregated bonus roll dataset
+    bonusRollsData.forEach((d) => {
+      if (d.boss) {
         bonusRollsByBoss[d.boss] = (bonusRollsByBoss[d.boss] || 0) + 1;
       }
     });
@@ -620,7 +625,7 @@ export default function LootDashboard() {
       bosses: Object.entries(bossCounts).sort((a, b) => b[1] - a[1]),
       bonusRollsByBoss: Object.entries(bonusRollsByBoss).sort((a, b) => b[1] - a[1]),
     };
-  }, [filteredData]);
+  }, [filteredData, bonusRollsData]);
 
   const hasActiveFilters = 
     search ||
@@ -835,7 +840,7 @@ export default function LootDashboard() {
               </div>
             </div>
 
-            {/* High-Legibility Vertical Bar Chart */}
+            {/* Vertical Bar Chart */}
             {raiderDisplayMode === "bars" && (
               <div className="w-full overflow-x-auto pt-4 pb-20">
                 <div className="min-w-[980px]">
@@ -1099,7 +1104,7 @@ export default function LootDashboard() {
             </div>
           </div>
 
-          {/* Bonus Rolls Used by Boss */}
+          {/* Bonus Rolls Used by Boss Card */}
           <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300 flex items-center gap-2">
               <Dices className="w-4 h-4 text-amber-400" />
@@ -1107,7 +1112,7 @@ export default function LootDashboard() {
             </h3>
             <div className="space-y-2">
               {analytics.bonusRollsByBoss.length === 0 ? (
-                <div className="text-xs text-gray-500 py-3">No bonus rolls recorded in filtered data.</div>
+                <div className="text-xs text-gray-500 py-3">No bonus rolls recorded.</div>
               ) : (
                 analytics.bonusRollsByBoss.map(([boss, count]) => {
                   const maxBonus = analytics.bonusRollsByBoss[0]?.[1] || 1;
