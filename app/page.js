@@ -44,22 +44,52 @@ export default function LootDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Append cache buster so Google Sheets updates reflect immediately
       const res = await fetch(`${CSV_URL}&t=${Date.now()}`);
       const csvText = await res.text();
       
       Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
+        transformHeader: (header) => header.trim().toLowerCase(),
         complete: (results) => {
-          setData(results.data);
+          // Normalize column lookups regardless of casing or formatting
+          const cleaned = results.data
+            .map((row) => {
+              const name = row["name"] || row["player"]?.split("-")[0] || "";
+              const item = row["item"] || "";
+              const itemID = row["itemid"] || "";
+              const date = row["date"] || "";
+              const time = row["time"] || "";
+              const charClass = (row["class"] || "").toUpperCase();
+              const response = row["response"] || "Awarded";
+              const votes = row["votes"] || "";
+              const boss = row["boss"] || "";
+              const instance = row["instance"] || "";
+              const gear1 = row["gear1"] || "";
+              return {
+                name: name.trim(),
+                item: item.trim(),
+                itemID: itemID.trim(),
+                date: date.trim(),
+                time: time.trim(),
+                class: charClass.trim(),
+                response: response.trim(),
+                votes: votes.trim(),
+                boss: boss.trim(),
+                instance: instance.trim(),
+                gear1: gear1.trim(),
+              };
+            })
+            .filter((row) => row.name || row.item);
+
+          setData(cleaned);
           setLoading(false);
           setLastRefreshed(new Date().toLocaleTimeString());
           setTimeout(() => {
             if (typeof window !== "undefined" && window.$WowheadPower) {
               window.$WowheadPower.refreshLinks();
             }
-          }, 100);
+          }, 150);
         }
       });
     } catch (err) {
@@ -72,7 +102,6 @@ export default function LootDashboard() {
     fetchData();
   }, []);
 
-  // Filter options
   const filterOptions = useMemo(() => {
     const classes = [...new Set(data.map((d) => d.class).filter(Boolean))].sort();
     const responses = [...new Set(data.map((d) => d.response).filter(Boolean))].sort();
@@ -80,7 +109,6 @@ export default function LootDashboard() {
     return { classes, responses, bosses };
   }, [data]);
 
-  // Filtered rows
   const filteredData = useMemo(() => {
     const q = search.toLowerCase();
     return data.filter((row) => {
@@ -95,15 +123,13 @@ export default function LootDashboard() {
     });
   }, [data, search, selectedClass, selectedResponse, selectedBoss]);
 
-  // Analytics Metrics
   const stats = useMemo(() => {
     const total = data.length;
     const bisCount = data.filter((d) => d.response === "BiS/Tier").length;
     const tokens = data.filter((d) =>
       /Icon|Curio|Remnant|Relic/i.test(d.item || "")
     ).length;
-    
-    // Per player aggregation
+
     const playerCounts = {};
     data.forEach((d) => {
       if (d.name) {
@@ -334,15 +360,19 @@ export default function LootDashboard() {
                         {row.name}
                       </td>
                       <td className="p-3.5 font-medium whitespace-nowrap">
-                        <a
-                          href={`https://www.wowhead.com/item=${row.itemID}`}
-                          data-wowhead={`item=${row.itemID}`}
-                          className="hover:underline text-white font-medium"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {cleanItem}
-                        </a>
+                        {row.itemID ? (
+                          <a
+                            href={`https://www.wowhead.com/item=${row.itemID}`}
+                            data-wowhead={`item=${row.itemID}`}
+                            className="hover:underline text-white font-medium"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {cleanItem}
+                          </a>
+                        ) : (
+                          <span className="text-white font-medium">{cleanItem}</span>
+                        )}
                       </td>
                       <td className="p-3.5 whitespace-nowrap">
                         <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${badge}`}>
@@ -353,7 +383,7 @@ export default function LootDashboard() {
                         {row.votes && row.votes !== "nil" ? `${row.votes} votes` : "—"}
                       </td>
                       <td className="p-3.5 text-xs text-gray-300">
-                        <div className="font-medium text-white">{row.boss}</div>
+                        <div className="font-medium text-white">{row.boss || "—"}</div>
                         <div className="text-[11px] text-gray-500">{row.instance}</div>
                       </td>
                       <td className="p-3.5 text-xs text-gray-400 max-w-xs truncate">
