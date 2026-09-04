@@ -14,6 +14,7 @@ import {
   Grid, 
   PieChart, 
   ShieldCheck,
+  Dices,
   ChevronDown,
   X
 } from "lucide-react";
@@ -92,17 +93,36 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
   const el = equipLoc.toLowerCase();
   const st = subType.toLowerCase();
 
-  if (t.includes("icon") || t.includes("curio") || t.includes("remnant") || t.includes("relic") || t.includes("token")) {
+  // Tier tokens, curios, icons, remnants, relics, idols, effigies
+  if (
+    st.includes("token") ||
+    t.includes("icon") ||
+    t.includes("curio") ||
+    t.includes("remnant") ||
+    t.includes("relic") ||
+    t.includes("idol") ||
+    t.includes("effigy") ||
+    t.includes("token")
+  ) {
     return "Token";
   }
-  if (el.includes("trinket")) return "Trinket";
-  if (el.includes("finger") || el.includes("neck")) return "Jewelry";
+
+  // Trinkets
+  if (el.includes("trinket") || st.includes("trinket")) return "Trinket";
+
+  // Jewelry
+  if (el.includes("finger") || el.includes("neck") || st.includes("finger") || st.includes("neck")) {
+    return "Jewelry";
+  }
+
+  // Weapons, shields, and off-hands
   if (
     el.includes("one-hand") ||
     el.includes("two-hand") ||
     el.includes("main hand") ||
     el.includes("off hand") ||
     el.includes("ranged") ||
+    el.includes("held in off-hand") ||
     st.includes("sword") ||
     st.includes("mace") ||
     st.includes("axe") ||
@@ -110,10 +130,17 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
     st.includes("staff") ||
     st.includes("staves") ||
     st.includes("bow") ||
-    st.includes("shield")
+    st.includes("shield") ||
+    st.includes("fist weapon") ||
+    st.includes("warglaive") ||
+    st.includes("crossbow") ||
+    st.includes("gun") ||
+    st.includes("wand")
   ) {
     return "Weapon/Shield";
   }
+
+  // Armor
   if (
     st.includes("cloth") ||
     st.includes("leather") ||
@@ -131,6 +158,7 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
   ) {
     return "Armor";
   }
+
   return "Other";
 }
 
@@ -216,7 +244,6 @@ function MultiSelectDropdown({ label, options, selected, onChange, colorMap = nu
   );
 }
 
-// Hierarchical Dropdown for Item Type with Armor Subcategories
 function ItemTypeDropdown({ selected, onChange }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -231,7 +258,7 @@ function ItemTypeDropdown({ selected, onChange }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const otherTypes = ["Weapon/Shield", "Trinket", "Token", "Jewelry", "Other"];
+  const otherTypes = ["Token", "Weapon/Shield", "Trinket", "Jewelry", "Other"];
 
   const isArmorChecked = ARMOR_SUBTYPES.every((sub) => selected.includes(`Armor:${sub}`));
   const isArmorIndeterminate = !isArmorChecked && ARMOR_SUBTYPES.some((sub) => selected.includes(`Armor:${sub}`));
@@ -297,7 +324,6 @@ function ItemTypeDropdown({ selected, onChange }) {
           </div>
 
           <div className="max-h-64 overflow-y-auto space-y-1 pt-1">
-            {/* Armor Parent */}
             <div className="border border-gray-800/80 rounded-lg p-1.5 bg-gray-900/40">
               <label className="flex items-center gap-2 px-1 py-0.5 rounded cursor-pointer text-xs font-semibold text-sky-400">
                 <input
@@ -310,7 +336,6 @@ function ItemTypeDropdown({ selected, onChange }) {
                 <span>Armor (All Types)</span>
               </label>
 
-              {/* Armor Subchildren */}
               <div className="pl-5 pt-1 space-y-1 border-t border-gray-800/60 mt-1">
                 {ARMOR_SUBTYPES.map((sub) => {
                   const key = `Armor:${sub}`;
@@ -333,7 +358,6 @@ function ItemTypeDropdown({ selected, onChange }) {
               </div>
             </div>
 
-            {/* Other Non-Armor Categories */}
             {otherTypes.map((type) => {
               const isChecked = selected.includes(type);
               return (
@@ -410,6 +434,7 @@ export default function LootDashboard() {
           const idxGear1 = headers.indexOf("gear1");
           const idxSubType = headers.indexOf("subtype");
           const idxEquipLoc = headers.indexOf("equiploc");
+          const idxRollType = headers.indexOf("rolltype");
 
           const parsedItems = [];
 
@@ -418,6 +443,7 @@ export default function LootDashboard() {
             if (!r || r.length <= 1) continue;
 
             const respRaw = idxResponse !== -1 ? (r[idxResponse] || "Awarded").trim() : "Awarded";
+            const rollTypeRaw = idxRollType !== -1 ? (r[idxRollType] || "").trim() : "";
 
             // Omit Personal Loot entirely
             if (
@@ -454,7 +480,6 @@ export default function LootDashboard() {
             const equipLoc = idxEquipLoc !== -1 ? (r[idxEquipLoc] || "").trim() : "";
             const itemType = categorizeItemType(item, subType, equipLoc);
 
-            // Determine specific armor subtype if armor
             let armorSubCategory = "";
             if (itemType === "Armor") {
               const st = subType.toLowerCase();
@@ -463,6 +488,10 @@ export default function LootDashboard() {
               else if (st.includes("mail")) armorSubCategory = "Mail";
               else if (st.includes("plate")) armorSubCategory = "Plate";
             }
+
+            const isBonusRoll = 
+              respRaw.toLowerCase().includes("bonus") || 
+              rollTypeRaw.toLowerCase().includes("bonus");
 
             if (name || item) {
               parsedItems.push({
@@ -480,7 +509,8 @@ export default function LootDashboard() {
                 subType,
                 equipLoc,
                 itemType,
-                armorSubCategory
+                armorSubCategory,
+                isBonusRoll
               });
             }
           }
@@ -526,7 +556,6 @@ export default function LootDashboard() {
       const matchResp = selectedResponses.length === 0 || selectedResponses.includes(row.response);
       const matchBoss = selectedBosses.length === 0 || selectedBosses.includes(row.boss);
 
-      // Hierarchical Item Type check
       let matchType = true;
       if (selectedItemTypes.length > 0) {
         if (row.itemType === "Armor") {
@@ -544,6 +573,7 @@ export default function LootDashboard() {
     const total = filteredData.length;
     const bisCount = filteredData.filter((d) => d.response === "BiS/Tier").length;
     const tokens = filteredData.filter((d) => d.itemType === "Token").length;
+    const bonusRolls = filteredData.filter((d) => d.isBonusRoll).length;
 
     const playerCounts = {};
     const playerClassMap = {};
@@ -558,13 +588,14 @@ export default function LootDashboard() {
     const sortedByCount = Object.entries(playerCounts).sort((a, b) => b[1] - a[1]);
     const maxCount = sortedByCount[0]?.[1] || 1;
 
-    return { total, bisCount, tokens, alphaPlayers, sortedByCount, maxCount, playerClassMap };
+    return { total, bisCount, tokens, bonusRolls, alphaPlayers, sortedByCount, maxCount, playerClassMap };
   }, [filteredData]);
 
   const analytics = useMemo(() => {
     const armorCounts = { Cloth: 0, Leather: 0, Mail: 0, Plate: 0, Miscellaneous: 0, Other: 0 };
     const classCounts = {};
     const bossCounts = {};
+    const bonusRollsByBoss = {};
 
     filteredData.forEach((d) => {
       const st = d.subType.toLowerCase();
@@ -577,12 +608,17 @@ export default function LootDashboard() {
 
       if (d.class) classCounts[d.class] = (classCounts[d.class] || 0) + 1;
       if (d.boss) bossCounts[d.boss] = (bossCounts[d.boss] || 0) + 1;
+
+      if (d.isBonusRoll && d.boss) {
+        bonusRollsByBoss[d.boss] = (bonusRollsByBoss[d.boss] || 0) + 1;
+      }
     });
 
     return {
       armor: Object.entries(armorCounts).sort((a, b) => b[1] - a[1]),
       classes: Object.entries(classCounts).sort((a, b) => b[1] - a[1]),
       bosses: Object.entries(bossCounts).sort((a, b) => b[1] - a[1]),
+      bonusRollsByBoss: Object.entries(bonusRollsByBoss).sort((a, b) => b[1] - a[1]),
     };
   }, [filteredData]);
 
@@ -804,7 +840,6 @@ export default function LootDashboard() {
               <div className="w-full overflow-x-auto pt-4 pb-20">
                 <div className="min-w-[980px]">
                   <div className="relative flex">
-                    {/* Y-Axis scale */}
                     <div
                       className="flex flex-col justify-between text-[11px] font-mono text-gray-500 pr-3 select-none text-right w-8"
                       style={{ height: `${chartHeight}px` }}
@@ -814,7 +849,6 @@ export default function LootDashboard() {
                       ))}
                     </div>
 
-                    {/* Chart Canvas */}
                     <div className="relative flex-1 border-l border-b border-gray-800" style={{ height: `${chartHeight}px` }}>
                       {yTicks.map((val) => {
                         const bottomPct = (val / yAxisMax) * 100;
@@ -827,7 +861,6 @@ export default function LootDashboard() {
                         );
                       })}
 
-                      {/* Bar Columns */}
                       <div className="absolute inset-0 flex items-end justify-between px-3">
                         {stats.alphaPlayers.map(([playerName, count]) => {
                           const pClass = stats.playerClassMap[playerName];
@@ -839,12 +872,10 @@ export default function LootDashboard() {
                               onClick={() => setSearch(playerName)}
                               className="group relative flex flex-col items-center justify-end h-full cursor-pointer px-1 w-[40px]"
                             >
-                              {/* Exact count on top of bar */}
                               <span className="text-[11px] font-mono font-bold text-gray-300 group-hover:text-white mb-1 transition select-none">
                                 {count}
                               </span>
 
-                              {/* Vertical Bar */}
                               <div
                                 className="w-full rounded-t-md transition-all group-hover:brightness-125 group-hover:shadow-[0_0_12px_rgba(59,130,246,0.5)]"
                                 style={{
@@ -853,7 +884,6 @@ export default function LootDashboard() {
                                 }}
                               />
 
-                              {/* Rotated, High-Contrast Legible Label */}
                               <div className="absolute top-[100%] mt-2 origin-top-left -rotate-60 whitespace-nowrap text-xs font-semibold select-none pointer-events-none">
                                 <span
                                   className="px-1.5 py-0.5 rounded bg-gray-950/90 border border-gray-800/90 shadow-sm"
@@ -1069,11 +1099,41 @@ export default function LootDashboard() {
             </div>
           </div>
 
-          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3 md:col-span-2">
+          {/* Bonus Rolls Used by Boss */}
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300 flex items-center gap-2">
+              <Dices className="w-4 h-4 text-amber-400" />
+              Bonus Rolls Used by Boss
+            </h3>
+            <div className="space-y-2">
+              {analytics.bonusRollsByBoss.length === 0 ? (
+                <div className="text-xs text-gray-500 py-3">No bonus rolls recorded in filtered data.</div>
+              ) : (
+                analytics.bonusRollsByBoss.map(([boss, count]) => {
+                  const maxBonus = analytics.bonusRollsByBoss[0]?.[1] || 1;
+                  const pct = Math.round((count / maxBonus) * 100);
+                  return (
+                    <div key={boss} className="bg-gray-950 p-2.5 rounded-lg border border-gray-800/80">
+                      <div className="flex justify-between text-xs mb-1 font-medium">
+                        <span className="text-gray-200 truncate">{boss}</span>
+                        <span className="text-gray-400 font-mono">{count} used</span>
+                      </div>
+                      <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-amber-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Encounter Yields */}
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
               Loot Drops per Encounter
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {analytics.bosses.map(([boss, count]) => {
                 const maxBoss = analytics.bosses[0]?.[1] || 1;
                 const pct = Math.round((count / maxBoss) * 100);
