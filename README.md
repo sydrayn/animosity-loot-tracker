@@ -1,0 +1,2 @@
+# animosity-loot-tracker
+
