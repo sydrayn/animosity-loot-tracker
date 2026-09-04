@@ -46,54 +46,94 @@ export default function LootDashboard() {
     try {
       const res = await fetch(`${CSV_URL}&t=${Date.now()}`);
       const csvText = await res.text();
-      
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (header) => header.trim().toLowerCase(),
-        complete: (results) => {
-          // Normalize column lookups regardless of casing or formatting
-          const cleaned = results.data
-            .map((row) => {
-              const name = row["name"] || row["player"]?.split("-")[0] || "";
-              const item = row["item"] || "";
-              const itemID = row["itemid"] || "";
-              const date = row["date"] || "";
-              const time = row["time"] || "";
-              const charClass = (row["class"] || "").toUpperCase();
-              const response = row["response"] || "Awarded";
-              const votes = row["votes"] || "";
-              const boss = row["boss"] || "";
-              const instance = row["instance"] || "";
-              const gear1 = row["gear1"] || "";
-              return {
-                name: name.trim(),
-                item: item.trim(),
-                itemID: itemID.trim(),
-                date: date.trim(),
-                time: time.trim(),
-                class: charClass.trim(),
-                response: response.trim(),
-                votes: votes.trim(),
-                boss: boss.trim(),
-                instance: instance.trim(),
-                gear1: gear1.trim(),
-              };
-            })
-            .filter((row) => row.name || row.item);
 
-          setData(cleaned);
+      Papa.parse(csvText, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data;
+          if (!rows || rows.length === 0) {
+            setLoading(false);
+            return;
+          }
+
+          // Locate the header row dynamically
+          let headerIdx = rows.findIndex((r) =>
+            r.some((cell) => cell && cell.toString().toLowerCase().includes("name") || cell.toString().toLowerCase().includes("itemid"))
+          );
+
+          if (headerIdx === -1) headerIdx = 0;
+
+          const headers = rows[headerIdx].map((h) =>
+            h ? h.toString().toLowerCase().trim() : ""
+          );
+
+          // Find exact column indexes
+          const idxName = headers.indexOf("name");
+          const idxPlayer = headers.indexOf("player");
+          const idxDate = headers.indexOf("date");
+          const idxTime = headers.indexOf("time");
+          const idxItem = headers.indexOf("item");
+          const idxItemID = headers.indexOf("itemid");
+          const idxResponse = headers.indexOf("response");
+          const idxVotes = headers.indexOf("votes");
+          const idxClass = headers.indexOf("class");
+          const idxInstance = headers.indexOf("instance");
+          const idxBoss = headers.indexOf("boss");
+          const idxGear1 = headers.indexOf("gear1");
+
+          const parsedItems = [];
+
+          for (let i = headerIdx + 1; i < rows.length; i++) {
+            const r = rows[i];
+            if (!r || r.length <= 1) continue;
+
+            let name = idxName !== -1 ? r[idxName] : "";
+            if (!name && idxPlayer !== -1 && r[idxPlayer]) {
+              name = r[idxPlayer].split("-")[0];
+            }
+
+            const item = idxItem !== -1 ? r[idxItem] : "";
+            const itemID = idxItemID !== -1 ? r[idxItemID] : "";
+            const date = idxDate !== -1 ? r[idxDate] : "";
+            const time = idxTime !== -1 ? r[idxTime] : "";
+            const charClass = idxClass !== -1 ? (r[idxClass] || "").toUpperCase().trim() : "";
+            const response = idxResponse !== -1 ? r[idxResponse] || "Awarded" : "Awarded";
+            const votes = idxVotes !== -1 ? r[idxVotes] : "";
+            const boss = idxBoss !== -1 ? r[idxBoss] : "";
+            const instance = idxInstance !== -1 ? r[idxInstance] : "";
+            const gear1 = idxGear1 !== -1 ? r[idxGear1] : "";
+
+            if (name || item) {
+              parsedItems.push({
+                name: (name || "").trim(),
+                item: (item || "").trim(),
+                itemID: (itemID || "").toString().trim(),
+                date: (date || "").trim(),
+                time: (time || "").trim(),
+                class: charClass,
+                response: (response || "Awarded").trim(),
+                votes: (votes || "").toString().trim(),
+                boss: (boss || "").trim(),
+                instance: (instance || "").trim(),
+                gear1: (gear1 || "").trim(),
+              });
+            }
+          }
+
+          setData(parsedItems);
           setLoading(false);
           setLastRefreshed(new Date().toLocaleTimeString());
+
           setTimeout(() => {
             if (typeof window !== "undefined" && window.$WowheadPower) {
               window.$WowheadPower.refreshLinks();
             }
           }, 150);
-        }
+        },
       });
     } catch (err) {
-      console.error("Failed to parse sheet data", err);
+      console.error("Failed to fetch/parse sheet data", err);
       setLoading(false);
     }
   };
@@ -348,7 +388,7 @@ export default function LootDashboard() {
                 filteredData.map((row, idx) => {
                   const classColor = CLASS_COLORS[row.class] || "text-white";
                   const badge = RESPONSE_STYLES[row.response] || "bg-gray-800 text-gray-300";
-                  const cleanItem = row.item?.replace(/^\[|\]$/g, "");
+                  const cleanItem = row.item ? row.item.replace(/^\[|\]$/g, "") : "Unknown Item";
 
                   return (
                     <tr key={idx} className="hover:bg-gray-800/40 transition">
