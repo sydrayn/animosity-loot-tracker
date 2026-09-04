@@ -13,7 +13,6 @@ import {
   List, 
   Grid, 
   PieChart, 
-  Sword, 
   ShieldCheck,
   ChevronDown,
   X
@@ -125,7 +124,6 @@ function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
   return "Other";
 }
 
-// Reusable Multi-Select Dropdown Component
 function MultiSelectDropdown({ label, options, selected, onChange, colorMap = null }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -212,7 +210,6 @@ export default function LootDashboard() {
   const [activeTab, setActiveTab] = useState("table");
   const [raiderDisplayMode, setRaiderDisplayMode] = useState("bars");
   
-  // Filters
   const [search, setSearch] = useState("");
   const [selectedDifficulties, setSelectedDifficulties] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
@@ -268,7 +265,7 @@ export default function LootDashboard() {
 
             const respRaw = idxResponse !== -1 ? (r[idxResponse] || "Awarded").trim() : "Awarded";
 
-            // Omit Personal Loot - Non tradeable entirely
+            // Omit Personal Loot - Non tradeable
             if (
               respRaw.toLowerCase().includes("personal loot") ||
               respRaw.toLowerCase().includes("non tradeable") ||
@@ -344,7 +341,6 @@ export default function LootDashboard() {
     fetchData();
   }, []);
 
-  // Filter options
   const filterOptions = useMemo(() => {
     const classes = [...new Set(data.map((d) => d.class).filter(Boolean))].sort();
     const responses = [...new Set(data.map((d) => d.response).filter(Boolean))].sort();
@@ -354,7 +350,6 @@ export default function LootDashboard() {
     return { classes, responses, bosses, difficulties, itemTypes };
   }, [data]);
 
-  // Multi-facet filtered dataset
   const filteredData = useMemo(() => {
     const q = search.toLowerCase();
     return data.filter((row) => {
@@ -371,7 +366,6 @@ export default function LootDashboard() {
     });
   }, [data, search, selectedDifficulties, selectedClasses, selectedResponses, selectedBosses, selectedItemTypes]);
 
-  // KPIs & Counts
   const stats = useMemo(() => {
     const total = filteredData.length;
     const bisCount = filteredData.filter((d) => d.response === "BiS/Tier").length;
@@ -386,7 +380,6 @@ export default function LootDashboard() {
       }
     });
 
-    // Alphabetical sort for consistent chart axis layout
     const alphaPlayers = Object.entries(playerCounts).sort((a, b) => a[0].localeCompare(b[0]));
     const sortedByCount = Object.entries(playerCounts).sort((a, b) => b[1] - a[1]);
     const maxCount = sortedByCount[0]?.[1] || 1;
@@ -394,7 +387,6 @@ export default function LootDashboard() {
     return { total, bisCount, tokens, alphaPlayers, sortedByCount, maxCount, playerClassMap };
   }, [filteredData]);
 
-  // Analytics tab calculations
   const analytics = useMemo(() => {
     const armorCounts = { Cloth: 0, Leather: 0, Mail: 0, Plate: 0, Miscellaneous: 0, Other: 0 };
     const classCounts = {};
@@ -437,7 +429,6 @@ export default function LootDashboard() {
     setSelectedItemTypes([]);
   };
 
-  // SVG Chart Height and Axis bounds
   const chartHeight = 220;
   const yAxisMax = Math.max(8, Math.ceil(stats.maxCount * 1.15));
   const yTicks = [0, Math.round(yAxisMax * 0.25), Math.round(yAxisMax * 0.5), Math.round(yAxisMax * 0.75), yAxisMax];
@@ -523,3 +514,401 @@ export default function LootDashboard() {
             <ShieldAlert className="w-4 h-4 text-amber-400" />
           </div>
           <div className="text-2xl font-bold text-amber-400 mt-1">{stats.tokens}</div>
+        </div>
+      </div>
+
+      {/* Multi-Select Filter Bar */}
+      <div className="bg-gray-900/90 border border-gray-800 p-4 rounded-xl space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-400 mb-1">Search</label>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Player or item..."
+                className="w-full pl-9 pr-3 py-1.5 bg-gray-950 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <MultiSelectDropdown
+            label="Difficulty"
+            options={filterOptions.difficulties}
+            selected={selectedDifficulties}
+            onChange={setSelectedDifficulties}
+          />
+
+          <MultiSelectDropdown
+            label="Class"
+            options={filterOptions.classes}
+            selected={selectedClasses}
+            onChange={setSelectedClasses}
+            colorMap={CLASS_COLORS}
+          />
+
+          <MultiSelectDropdown
+            label="Item Type"
+            options={filterOptions.itemTypes}
+            selected={selectedItemTypes}
+            onChange={setSelectedItemTypes}
+          />
+
+          <MultiSelectDropdown
+            label="Response"
+            options={filterOptions.responses}
+            selected={selectedResponses}
+            onChange={setSelectedResponses}
+          />
+
+          <MultiSelectDropdown
+            label="Boss"
+            options={filterOptions.bosses}
+            selected={selectedBosses}
+            onChange={setSelectedBosses}
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={resetAllFilters}
+              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+            >
+              <X className="w-3.5 h-3.5" />
+              Reset All Filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {activeTab === "table" ? (
+        <>
+          {/* Raider Loot Presentation Box */}
+          <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-800/80 pb-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
+                  Raider Loot Allocation
+                </h2>
+                <p className="text-xs text-gray-500">Click any raider bar or badge to isolate their drops</p>
+              </div>
+
+              {/* View Mode Toggles */}
+              <div className="flex bg-gray-950 p-0.5 rounded-lg border border-gray-800 self-start">
+                <button
+                  onClick={() => setRaiderDisplayMode("bars")}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded ${
+                    raiderDisplayMode === "bars" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  Bar Chart
+                </button>
+                <button
+                  onClick={() => setRaiderDisplayMode("cards")}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded ${
+                    raiderDisplayMode === "cards" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  Badges
+                </button>
+                <button
+                  onClick={() => setRaiderDisplayMode("grouped")}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded ${
+                    raiderDisplayMode === "grouped" ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  By Class
+                </button>
+              </div>
+            </div>
+
+            {/* Option 1: True Vertical Bar Chart */}
+            {raiderDisplayMode === "bars" && (
+              <div className="w-full overflow-x-auto pt-2 pb-6">
+                <div className="min-w-[820px]">
+                  <div className="relative flex">
+                    <div className="flex flex-col justify-between text-[11px] font-mono text-gray-500 pr-3 select-none text-right w-8" style={{ height: `${chartHeight}px` }}>
+                      {[...yTicks].reverse().map((val) => (
+                        <span key={val}>{val}</span>
+                      ))}
+                    </div>
+
+                    <div className="relative flex-1 border-l border-b border-gray-800" style={{ height: `${chartHeight}px` }}>
+                      {yTicks.map((val) => {
+                        const bottomPct = (val / yAxisMax) * 100;
+                        return (
+                          <div
+                            key={val}
+                            className="absolute left-0 right-0 border-b border-gray-800/60"
+                            style={{ bottom: `${bottomPct}%` }}
+                          />
+                        );
+                      })}
+
+                      <div className="absolute inset-0 flex items-end justify-around px-2 gap-2">
+                        {stats.alphaPlayers.map(([playerName, count]) => {
+                          const pClass = stats.playerClassMap[playerName];
+                          const barColor = "#3b82f6";
+                          const heightPct = Math.max(4, (count / yAxisMax) * 100);
+
+                          return (
+                            <div
+                              key={playerName}
+                              onClick={() => setSearch(playerName)}
+                              className="group relative flex-1 flex flex-col items-center justify-end h-full cursor-pointer max-w-[38px]"
+                            >
+                              <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition bg-gray-900 border border-gray-700 text-[11px] font-bold px-1.5 py-0.5 rounded pointer-events-none z-10 text-white whitespace-nowrap shadow-lg">
+                                {count} {count === 1 ? "item" : "items"}
+                              </div>
+
+                              <div
+                                className="w-full rounded-t transition-all group-hover:brightness-125"
+                                style={{
+                                  height: `${heightPct}%`,
+                                  backgroundColor: barColor
+                                }}
+                              />
+
+                              <div className="absolute top-[100%] pt-2 origin-top-left -rotate-45 whitespace-nowrap text-[11px] font-medium select-none pointer-events-none">
+                                <span style={{ color: CLASS_COLORS[pClass] || "#94a3b8" }}>
+                                  {playerName}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-14" />
+                </div>
+              </div>
+            )}
+
+            {/* Option 2: Compact Badge Grid */}
+            {raiderDisplayMode === "cards" && (
+              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-2">
+                {stats.sortedByCount.map(([playerName, count]) => {
+                  const pClass = stats.playerClassMap[playerName];
+                  const textClass = CLASS_TEXT_CLASSES[pClass] || "text-white";
+                  const bgClass = CLASS_BG_CLASSES[pClass] || "bg-gray-800 border-gray-700";
+
+                  return (
+                    <button
+                      key={playerName}
+                      onClick={() => setSearch(playerName)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition hover:scale-105 ${bgClass}`}
+                    >
+                      <span className={textClass}>{playerName}</span>
+                      <span className="bg-gray-900/90 text-gray-200 px-1.5 py-0.5 rounded font-mono text-[11px]">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Option 3: Grouped by Class */}
+            {raiderDisplayMode === "grouped" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto pr-2">
+                {filterOptions.classes.map((cls) => {
+                  const raidersInClass = stats.sortedByCount.filter(
+                    ([p]) => stats.playerClassMap[p] === cls
+                  );
+                  if (raidersInClass.length === 0) return null;
+
+                  return (
+                    <div key={cls} className="bg-gray-950/60 p-3 rounded-lg border border-gray-800">
+                      <div className={`text-xs font-bold uppercase tracking-wider mb-2 ${CLASS_TEXT_CLASSES[cls]}`}>
+                        {cls}
+                      </div>
+                      <div className="space-y-1">
+                        {raidersInClass.map(([p, cnt]) => (
+                          <div
+                            key={p}
+                            onClick={() => setSearch(p)}
+                            className="flex justify-between text-xs cursor-pointer hover:bg-gray-800/60 px-1.5 py-0.5 rounded"
+                          >
+                            <span className="text-gray-300">{p}</span>
+                            <span className="font-mono text-gray-400 font-semibold">{cnt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Loot Table */}
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-950/80 text-gray-400 border-b border-gray-800 text-xs uppercase tracking-wider font-semibold">
+                  <tr>
+                    <th className="p-3.5">Date / Time</th>
+                    <th className="p-3.5">Raider</th>
+                    <th className="p-3.5">Item Awarded</th>
+                    <th className="p-3.5">Type</th>
+                    <th className="p-3.5">Response</th>
+                    <th className="p-3.5">Difficulty</th>
+                    <th className="p-3.5">Boss / Instance</th>
+                    <th className="p-3.5">Replaced</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/60">
+                  {filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-gray-500">
+                        No matching records found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredData.map((row, idx) => {
+                      const classColor = CLASS_TEXT_CLASSES[row.class] || "text-white";
+                      const badge = RESPONSE_STYLES[row.response] || "bg-gray-800 text-gray-300";
+                      const cleanItem = row.item ? row.item.replace(/^\[|\]$/g, "") : "Unknown Item";
+
+                      return (
+                        <tr key={idx} className="hover:bg-gray-800/40 transition">
+                          <td className="p-3.5 text-xs text-gray-400 font-mono whitespace-nowrap">
+                            {row.date}
+                            <div className="text-[11px] text-gray-500">{row.time}</div>
+                          </td>
+                          <td className={`p-3.5 font-semibold ${classColor} whitespace-nowrap`}>
+                            {row.name}
+                          </td>
+                          <td className="p-3.5 font-medium whitespace-nowrap">
+                            {row.itemID ? (
+                              <a
+                                href={`https://www.wowhead.com/item=${row.itemID}`}
+                                data-wowhead={`item=${row.itemID}`}
+                                className="hover:underline text-white font-medium"
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {cleanItem}
+                              </a>
+                            ) : (
+                              <span className="text-white font-medium">{cleanItem}</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap text-xs text-gray-400 font-mono">
+                            {row.itemType}
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${badge}`}>
+                              {row.response}
+                            </span>
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                              row.difficulty === "Heroic" 
+                                ? "bg-amber-950/50 text-amber-300 border-amber-800" 
+                                : row.difficulty === "Mythic"
+                                ? "bg-red-950/50 text-red-300 border-red-800"
+                                : "bg-gray-800 text-gray-300 border-gray-700"
+                            }`}>
+                              {row.difficulty}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-xs text-gray-300">
+                            <div className="font-medium text-white">{row.boss || "—"}</div>
+                            <div className="text-[11px] text-gray-500">{row.instance}</div>
+                          </td>
+                          <td className="p-3.5 text-xs text-gray-400 max-w-xs truncate">
+                            {row.gear1 ? row.gear1.replace(/^\[|\]$/g, "") : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Analytics Deep-Dive Tab */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-sky-400" />
+              Armor Type Breakdown
+            </h3>
+            <div className="space-y-2">
+              {analytics.armor.map(([armor, count]) => {
+                const pct = Math.round((count / (stats.total || 1)) * 100);
+                return (
+                  <div key={armor} className="bg-gray-950 p-2.5 rounded-lg border border-gray-800/80">
+                    <div className="flex justify-between text-xs mb-1 font-medium">
+                      <span className="text-gray-200">{armor}</span>
+                      <span className="text-gray-400 font-mono">{count} ({pct}%)</span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-sky-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
+              Total Loot Awarded by Class
+            </h3>
+            <div className="space-y-2">
+              {analytics.classes.map(([cls, count]) => {
+                const maxClass = analytics.classes[0]?.[1] || 1;
+                const pct = Math.round((count / maxClass) * 100);
+                return (
+                  <div key={cls} className="bg-gray-950 p-2.5 rounded-lg border border-gray-800/80">
+                    <div className="flex justify-between text-xs mb-1 font-medium">
+                      <span className={CLASS_TEXT_CLASSES[cls] || "text-white"}>{cls}</span>
+                      <span className="text-gray-400 font-mono">{count} items</span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-5 space-y-3 md:col-span-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
+              Loot Drops per Encounter
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {analytics.bosses.map(([boss, count]) => {
+                const maxBoss = analytics.bosses[0]?.[1] || 1;
+                const pct = Math.round((count / maxBoss) * 100);
+                return (
+                  <div key={boss} className="bg-gray-950 p-2.5 rounded-lg border border-gray-800/80">
+                    <div className="flex justify-between text-xs mb-1 font-medium">
+                      <span className="text-gray-200 truncate">{boss}</span>
+                      <span className="text-gray-400 font-mono">{count} drops</span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
