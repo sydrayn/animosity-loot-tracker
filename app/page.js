@@ -77,6 +77,16 @@ const RESPONSE_STYLES = {
   "Bonus Loot": "bg-indigo-950/80 text-indigo-300 border border-indigo-700/60"
 };
 
+const PLURAL_MAP = {
+  Difficulty: "All Difficulties",
+  Class: "All Classes",
+  Boss: "All Bosses",
+  Response: "All Responses",
+  "Item Type": "All Item Types"
+};
+
+const ARMOR_SUBTYPES = ["Cloth", "Leather", "Mail", "Plate"];
+
 function categorizeItemType(itemTitle = "", subType = "", equipLoc = "") {
   const t = itemTitle.toLowerCase();
   const el = equipLoc.toLowerCase();
@@ -149,6 +159,8 @@ function MultiSelectDropdown({ label, options, selected, onChange, colorMap = nu
   const selectAll = () => onChange([...options]);
   const clearAll = () => onChange([]);
 
+  const defaultLabel = PLURAL_MAP[label] || `All ${label}s`;
+
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
@@ -159,7 +171,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, colorMap = nu
       >
         <span className="truncate">
           {selected.length === 0
-            ? `All ${label}s`
+            ? defaultLabel
             : selected.length === 1
             ? selected[0]
             : `${selected.length} Selected`}
@@ -194,6 +206,148 @@ function MultiSelectDropdown({ label, options, selected, onChange, colorMap = nu
                   >
                     {opt}
                   </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Hierarchical Dropdown for Item Type with Armor Subcategories
+function ItemTypeDropdown({ selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const otherTypes = ["Weapon/Shield", "Trinket", "Token", "Jewelry", "Other"];
+
+  const isArmorChecked = ARMOR_SUBTYPES.every((sub) => selected.includes(`Armor:${sub}`));
+  const isArmorIndeterminate = !isArmorChecked && ARMOR_SUBTYPES.some((sub) => selected.includes(`Armor:${sub}`));
+
+  const toggleArmorParent = () => {
+    if (isArmorChecked) {
+      onChange(selected.filter((item) => !item.startsWith("Armor:")));
+    } else {
+      const added = ARMOR_SUBTYPES.map((sub) => `Armor:${sub}`);
+      const withoutArmor = selected.filter((item) => !item.startsWith("Armor:"));
+      onChange([...withoutArmor, ...added]);
+    }
+  };
+
+  const toggleArmorChild = (sub) => {
+    const key = `Armor:${sub}`;
+    if (selected.includes(key)) {
+      onChange(selected.filter((item) => item !== key));
+    } else {
+      onChange([...selected, key]);
+    }
+  };
+
+  const toggleOtherType = (type) => {
+    if (selected.includes(type)) {
+      onChange(selected.filter((item) => item !== type));
+    } else {
+      onChange([...selected, type]);
+    }
+  };
+
+  const selectAll = () => {
+    const all = [...ARMOR_SUBTYPES.map((sub) => `Armor:${sub}`), ...otherTypes];
+    onChange(all);
+  };
+
+  const clearAll = () => onChange([]);
+
+  let labelText = "All Item Types";
+  if (selected.length === 1) {
+    labelText = selected[0].replace("Armor:", "");
+  } else if (selected.length > 1) {
+    labelText = `${selected.length} Selected`;
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-xs font-medium text-gray-400 mb-1">Item Type</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-1.5 px-3 bg-gray-950 border border-gray-700 rounded-lg text-sm text-left text-white hover:border-gray-500 transition"
+      >
+        <span className="truncate">{labelText}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-1.5 flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-64 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl p-2 space-y-1">
+          <div className="flex justify-between items-center px-2 py-1 border-b border-gray-800 text-[11px]">
+            <button onClick={selectAll} className="text-indigo-400 hover:underline">Select All</button>
+            <button onClick={clearAll} className="text-gray-400 hover:underline">Clear</button>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto space-y-1 pt-1">
+            {/* Armor Parent */}
+            <div className="border border-gray-800/80 rounded-lg p-1.5 bg-gray-900/40">
+              <label className="flex items-center gap-2 px-1 py-0.5 rounded cursor-pointer text-xs font-semibold text-sky-400">
+                <input
+                  type="checkbox"
+                  checked={isArmorChecked}
+                  ref={(el) => el && (el.indeterminate = isArmorIndeterminate)}
+                  onChange={toggleArmorParent}
+                  className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-0"
+                />
+                <span>Armor (All Types)</span>
+              </label>
+
+              {/* Armor Subchildren */}
+              <div className="pl-5 pt-1 space-y-1 border-t border-gray-800/60 mt-1">
+                {ARMOR_SUBTYPES.map((sub) => {
+                  const key = `Armor:${sub}`;
+                  const isChecked = selected.includes(key);
+                  return (
+                    <label
+                      key={sub}
+                      className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-800/70 cursor-pointer text-xs text-gray-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleArmorChild(sub)}
+                        className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-0"
+                      />
+                      <span>{sub}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Other Non-Armor Categories */}
+            {otherTypes.map((type) => {
+              const isChecked = selected.includes(type);
+              return (
+                <label
+                  key={type}
+                  className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800/70 cursor-pointer text-xs font-medium text-gray-200"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOtherType(type)}
+                    className="rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-0"
+                  />
+                  <span>{type}</span>
                 </label>
               );
             })}
@@ -265,7 +419,7 @@ export default function LootDashboard() {
 
             const respRaw = idxResponse !== -1 ? (r[idxResponse] || "Awarded").trim() : "Awarded";
 
-            // Omit Personal Loot - Non tradeable
+            // Omit Personal Loot entirely
             if (
               respRaw.toLowerCase().includes("personal loot") ||
               respRaw.toLowerCase().includes("non tradeable") ||
@@ -300,6 +454,16 @@ export default function LootDashboard() {
             const equipLoc = idxEquipLoc !== -1 ? (r[idxEquipLoc] || "").trim() : "";
             const itemType = categorizeItemType(item, subType, equipLoc);
 
+            // Determine specific armor subtype if armor
+            let armorSubCategory = "";
+            if (itemType === "Armor") {
+              const st = subType.toLowerCase();
+              if (st.includes("cloth")) armorSubCategory = "Cloth";
+              else if (st.includes("leather")) armorSubCategory = "Leather";
+              else if (st.includes("mail")) armorSubCategory = "Mail";
+              else if (st.includes("plate")) armorSubCategory = "Plate";
+            }
+
             if (name || item) {
               parsedItems.push({
                 name: (name || "").trim(),
@@ -315,7 +479,8 @@ export default function LootDashboard() {
                 gear1: (idxGear1 !== -1 ? r[idxGear1] : "").trim(),
                 subType,
                 equipLoc,
-                itemType
+                itemType,
+                armorSubCategory
               });
             }
           }
@@ -346,8 +511,7 @@ export default function LootDashboard() {
     const responses = [...new Set(data.map((d) => d.response).filter(Boolean))].sort();
     const bosses = [...new Set(data.map((d) => d.boss).filter(Boolean))].sort();
     const difficulties = [...new Set(data.map((d) => d.difficulty).filter(Boolean))].sort();
-    const itemTypes = ["Armor", "Weapon/Shield", "Trinket", "Token", "Jewelry", "Other"];
-    return { classes, responses, bosses, difficulties, itemTypes };
+    return { classes, responses, bosses, difficulties };
   }, [data]);
 
   const filteredData = useMemo(() => {
@@ -361,7 +525,17 @@ export default function LootDashboard() {
       const matchClass = selectedClasses.length === 0 || selectedClasses.includes(row.class);
       const matchResp = selectedResponses.length === 0 || selectedResponses.includes(row.response);
       const matchBoss = selectedBosses.length === 0 || selectedBosses.includes(row.boss);
-      const matchType = selectedItemTypes.length === 0 || selectedItemTypes.includes(row.itemType);
+
+      // Hierarchical Item Type check
+      let matchType = true;
+      if (selectedItemTypes.length > 0) {
+        if (row.itemType === "Armor") {
+          matchType = selectedItemTypes.includes(`Armor:${row.armorSubCategory}`);
+        } else {
+          matchType = selectedItemTypes.includes(row.itemType);
+        }
+      }
+
       return matchSearch && matchDiff && matchClass && matchResp && matchBoss && matchType;
     });
   }, [data, search, selectedDifficulties, selectedClasses, selectedResponses, selectedBosses, selectedItemTypes]);
@@ -429,7 +603,7 @@ export default function LootDashboard() {
     setSelectedItemTypes([]);
   };
 
-  const chartHeight = 220;
+  const chartHeight = 240;
   const yAxisMax = Math.max(8, Math.ceil(stats.maxCount * 1.15));
   const yTicks = [0, Math.round(yAxisMax * 0.25), Math.round(yAxisMax * 0.5), Math.round(yAxisMax * 0.75), yAxisMax];
 
@@ -549,9 +723,7 @@ export default function LootDashboard() {
             colorMap={CLASS_COLORS}
           />
 
-          <MultiSelectDropdown
-            label="Item Type"
-            options={filterOptions.itemTypes}
+          <ItemTypeDropdown
             selected={selectedItemTypes}
             onChange={setSelectedItemTypes}
           />
@@ -586,7 +758,7 @@ export default function LootDashboard() {
 
       {activeTab === "table" ? (
         <>
-          {/* Raider Loot Presentation Box */}
+          {/* Raider Loot Allocation Presentation Box */}
           <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-5 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-800/80 pb-3">
               <div>
@@ -596,7 +768,6 @@ export default function LootDashboard() {
                 <p className="text-xs text-gray-500">Click any raider bar or badge to isolate their drops</p>
               </div>
 
-              {/* View Mode Toggles */}
               <div className="flex bg-gray-950 p-0.5 rounded-lg border border-gray-800 self-start">
                 <button
                   onClick={() => setRaiderDisplayMode("bars")}
@@ -628,17 +799,22 @@ export default function LootDashboard() {
               </div>
             </div>
 
-            {/* Option 1: True Vertical Bar Chart */}
+            {/* High-Legibility Vertical Bar Chart */}
             {raiderDisplayMode === "bars" && (
-              <div className="w-full overflow-x-auto pt-2 pb-6">
-                <div className="min-w-[820px]">
+              <div className="w-full overflow-x-auto pt-4 pb-20">
+                <div className="min-w-[980px]">
                   <div className="relative flex">
-                    <div className="flex flex-col justify-between text-[11px] font-mono text-gray-500 pr-3 select-none text-right w-8" style={{ height: `${chartHeight}px` }}>
+                    {/* Y-Axis scale */}
+                    <div
+                      className="flex flex-col justify-between text-[11px] font-mono text-gray-500 pr-3 select-none text-right w-8"
+                      style={{ height: `${chartHeight}px` }}
+                    >
                       {[...yTicks].reverse().map((val) => (
                         <span key={val}>{val}</span>
                       ))}
                     </div>
 
+                    {/* Chart Canvas */}
                     <div className="relative flex-1 border-l border-b border-gray-800" style={{ height: `${chartHeight}px` }}>
                       {yTicks.map((val) => {
                         const bottomPct = (val / yAxisMax) * 100;
@@ -651,32 +827,38 @@ export default function LootDashboard() {
                         );
                       })}
 
-                      <div className="absolute inset-0 flex items-end justify-around px-2 gap-2">
+                      {/* Bar Columns */}
+                      <div className="absolute inset-0 flex items-end justify-between px-3">
                         {stats.alphaPlayers.map(([playerName, count]) => {
                           const pClass = stats.playerClassMap[playerName];
-                          const barColor = "#3b82f6";
-                          const heightPct = Math.max(4, (count / yAxisMax) * 100);
+                          const heightPct = Math.max(5, (count / yAxisMax) * 100);
 
                           return (
                             <div
                               key={playerName}
                               onClick={() => setSearch(playerName)}
-                              className="group relative flex-1 flex flex-col items-center justify-end h-full cursor-pointer max-w-[38px]"
+                              className="group relative flex flex-col items-center justify-end h-full cursor-pointer px-1 w-[40px]"
                             >
-                              <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition bg-gray-900 border border-gray-700 text-[11px] font-bold px-1.5 py-0.5 rounded pointer-events-none z-10 text-white whitespace-nowrap shadow-lg">
-                                {count} {count === 1 ? "item" : "items"}
-                              </div>
+                              {/* Exact count on top of bar */}
+                              <span className="text-[11px] font-mono font-bold text-gray-300 group-hover:text-white mb-1 transition select-none">
+                                {count}
+                              </span>
 
+                              {/* Vertical Bar */}
                               <div
-                                className="w-full rounded-t transition-all group-hover:brightness-125"
+                                className="w-full rounded-t-md transition-all group-hover:brightness-125 group-hover:shadow-[0_0_12px_rgba(59,130,246,0.5)]"
                                 style={{
                                   height: `${heightPct}%`,
-                                  backgroundColor: barColor
+                                  backgroundColor: "#3b82f6"
                                 }}
                               />
 
-                              <div className="absolute top-[100%] pt-2 origin-top-left -rotate-45 whitespace-nowrap text-[11px] font-medium select-none pointer-events-none">
-                                <span style={{ color: CLASS_COLORS[pClass] || "#94a3b8" }}>
+                              {/* Rotated, High-Contrast Legible Label */}
+                              <div className="absolute top-[100%] mt-2 origin-top-left -rotate-60 whitespace-nowrap text-xs font-semibold select-none pointer-events-none">
+                                <span
+                                  className="px-1.5 py-0.5 rounded bg-gray-950/90 border border-gray-800/90 shadow-sm"
+                                  style={{ color: CLASS_COLORS[pClass] || "#e2e8f0" }}
+                                >
                                   {playerName}
                                 </span>
                               </div>
@@ -686,7 +868,7 @@ export default function LootDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="h-14" />
+                  <div className="h-10" />
                 </div>
               </div>
             )}
@@ -802,7 +984,9 @@ export default function LootDashboard() {
                             )}
                           </td>
                           <td className="p-3.5 whitespace-nowrap text-xs text-gray-400 font-mono">
-                            {row.itemType}
+                            {row.itemType === "Armor" && row.armorSubCategory
+                              ? `${row.armorSubCategory}`
+                              : row.itemType}
                           </td>
                           <td className="p-3.5 whitespace-nowrap">
                             <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${badge}`}>
